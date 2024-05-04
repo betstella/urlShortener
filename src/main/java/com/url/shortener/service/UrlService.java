@@ -50,17 +50,17 @@ public class UrlService {
         this.redisTemplate = redisTemplate;
     }
 
-    @Cacheable(value = "url", key = "#url.shortUrl")
-    private Url fetchUrl(String shortUrl) {
+    protected Url fetchUrl(String shortUrl) {
         return urlRepository.findByShortUrl(shortUrl);
     }
 
+    @Cacheable(value = "longUrl", key = "#shortUrl")
     public String getOriginalUrl(String shortUrl) {
         Optional<Url> url = Optional.ofNullable(fetchUrl(shortUrl));
         return url.isPresent() ? url.get().getLongUrl() : StringUtils.EMPTY;
     }
 
-    private URL createURL(String urlSpec) throws MalformedURLException {
+    protected URL createURL(String urlSpec) throws MalformedURLException {
         if (!urlSpec.startsWith(HTTP_PROTOCOL) && !urlSpec.startsWith(HTTPS_PROTOCOL)) {
             urlSpec = HTTPS_PROTOCOL + urlSpec;
         }
@@ -115,22 +115,16 @@ public class UrlService {
                 cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec);
                 byte[] encryptedBytes = cipher.doFinal((Instant.now().toString() + longURL).getBytes());
                 String encryptedURL = this.convertToAlphanumeric(Base64.getEncoder().encodeToString(encryptedBytes));
-                System.out.println(encryptedURL);
 
                 shortURL = encryptedURL.substring(0, shortUrlLength);
-                Optional<Url> optionalUrl = Optional.ofNullable(urlRepository.findByShortUrl(shortURL));
-                existsShortUrl = optionalUrl.isPresent();
+                String url = getOriginalUrl(shortURL);
+                existsShortUrl = StringUtils.isNotEmpty(url);
                 count++;
             } while (count < generationUniqueUrlRetry && existsShortUrl);
 
             if (!existsShortUrl) {
-                Url url = new Url();
-                url.setLongUrl(longURL);
-                url.setShortUrl(shortURL);
-                url.setExpirationDate(LocalDate.now().plusDays(urlExpirationDays));
-                url.setSourceIp(remoteIp);
-                urlRepository.save(url);
-                redisTemplate.opsForHash().put("Url", url.getShortUrl(), url);
+                saveUrl(shortURL, longURL, remoteIp);
+                redisTemplate.opsForList().leftPush("#shortUrl", longURL);
                 return shortURL;
             }
 
@@ -139,6 +133,15 @@ public class UrlService {
             log.error("Could not generate a short url", e);
             throw new Exception(e);
         }
+    }
+
+    private void saveUrl(String shortURL, String longURL, String remoteIp) {
+        Url url = new Url();
+        url.setLongUrl(longURL);
+        url.setShortUrl(shortURL);
+        url.setExpirationDate(LocalDate.now().plusDays(urlExpirationDays));
+        url.setSourceIp(remoteIp);
+        urlRepository.save(url);
     }
 
     public String convertToAlphanumeric(String base64String) {
