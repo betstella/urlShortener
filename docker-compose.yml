@@ -1,4 +1,13 @@
 services:
+  cache:
+    image: "redis"
+    expose:
+      - "6379"
+    ports:
+      - "6379:6379"
+    environment:
+      ALLOW_EMPTY_PASSWORD: 'true'
+      REDIS_DISABLE_COMMANDS: FLUSHDB,FLUSHALL
   postgres-url-db:
     image: "postgres:latest"
     container_name: postgres-url-db
@@ -25,9 +34,12 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-url-db:5434/url
       SPRING_DATASOURCE_USERNAME: betmart
       SPRING_DATASOURCE_PASSWORD: betmart
+      SPRING_REDIS_HOST: cache
+      SPRING_REDIS_PORT: 6379
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
     depends_on:
       - postgres-url-db
+      - cache
 volumes:
   postgres-url-db:
     driver: local

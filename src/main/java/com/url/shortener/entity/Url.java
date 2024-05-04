@@ -8,7 +8,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.data.redis.core.RedisHash;
 
+import java.math.BigInteger;
 import java.time.LocalDate;
 
 @Entity
@@ -18,18 +20,18 @@ import java.time.LocalDate;
 public class Url {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
-    private Long id;
+    private BigInteger id;
 
-    @Column(name = "long-url")
+    @Column(name = "long-url", length = 100)
     private String longUrl;
 
-    @Column(name = "short-url", unique = true)
+    @Column(name = "short-url", unique = true, length = 7)
     private String shortUrl;
 
     @Column(name = "expiration-date")
     private LocalDate expirationDate;
 
-    @Column(name = "source-ip")
+    @Column(name = "source-ip", length = 15)
     private String sourceIp;
 
 }
