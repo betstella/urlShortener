@@ -57,9 +57,16 @@ public class UrlService {
     @Cacheable(value = "longUrl", key = "#shortUrl")
     public String getOriginalUrl(String shortUrl) {
         Optional<Url> url = Optional.ofNullable(fetchUrl(shortUrl));
-        return url.isPresent() ? url.get().getLongUrl() : StringUtils.EMPTY;
+        boolean expired = url.isPresent() && url.get().getExpirationDate().isBefore(LocalDate.now());
+        if ( url.isPresent() && expired) {
+            deleteUrl(url.get());
+        }
+        return url.isPresent() && !expired ? url.get().getLongUrl() : StringUtils.EMPTY;
     }
 
+    protected void deleteUrl(Url url) {
+        urlRepository.delete(url);
+    }
     protected URL createURL(String urlSpec) throws MalformedURLException {
         if (!urlSpec.startsWith(HTTP_PROTOCOL) && !urlSpec.startsWith(HTTPS_PROTOCOL)) {
             urlSpec = HTTPS_PROTOCOL + urlSpec;

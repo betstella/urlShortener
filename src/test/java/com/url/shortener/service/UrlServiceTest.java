@@ -16,6 +16,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -77,7 +78,7 @@ public class UrlServiceTest {
         String remoteIp = "127.0.0.1";
 
         // Mocking repository method
-        when(urlRepository.findByShortUrl(anyString())).thenReturn(new Url());
+        when(urlRepository.findByShortUrl(anyString())).thenReturn(null);
 
         String shortenedURL = urlService.shortenURL(longURL, remoteIp);
         assertNotNull(shortenedURL);
@@ -101,18 +102,45 @@ public class UrlServiceTest {
         try {
             Url url = new Url();
             url.setLongUrl(longURL);
-
-            // Call the method under test
             URL createdURL = urlService.createURL(longURL);
-
-            // Verify that the created URL is not null
             assertNotNull(createdURL);
-
-            // Verify that the created URL matches the original long URL
             assertEquals(longURL, createdURL.toString());
         } catch (MalformedURLException e) {
             fail("MalformedURLException should not be thrown for valid URL");
         }
+    }
+
+    @Test
+    public void testGetOriginalUrl_NotExpired() {
+        String shortUrl = "abc";
+        String longUrl = "https://example.com";
+
+        Url url = new Url();
+        url.setShortUrl(shortUrl);
+        url.setLongUrl(longUrl);
+        url.setExpirationDate(LocalDate.now().plusDays(1));
+        when(urlRepository.findByShortUrl(shortUrl)).thenReturn(url);
+        String originalUrl = urlService.getOriginalUrl(shortUrl);
+
+        assertEquals(longUrl, originalUrl);
+    }
+
+    @Test
+    public void testGetOriginalUrl_Expired() {
+        String shortUrl = "abc";
+        String longUrl = "https://example.com";
+
+        Url expiredUrl = new Url();
+        expiredUrl.setShortUrl(shortUrl);
+        expiredUrl.setLongUrl(longUrl);
+        expiredUrl.setExpirationDate(LocalDate.now().minusDays(1));
+        when(urlRepository.findByShortUrl(shortUrl)).thenReturn(expiredUrl);
+
+        String originalUrl = urlService.getOriginalUrl(shortUrl);
+
+        assertEquals("", originalUrl);
+
+        verify(urlRepository, times(1)).delete(expiredUrl);
     }
 
     @Test
