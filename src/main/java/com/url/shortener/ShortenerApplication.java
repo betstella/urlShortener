@@ -17,15 +17,4 @@ public class ShortenerApplication {
 		SpringApplication.run(ShortenerApplication.class, args);
 	}
 
-	@Bean
-	public CorsFilter corsFilter() {
-		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-		CorsConfiguration config = new CorsConfiguration();
-		config.addAllowedOrigin("*");
-		config.addAllowedMethod("*");
-		config.addAllowedHeader("*");
-		source.registerCorsConfiguration("/**", config);
-		return new CorsFilter(source);
-	}
-
 }
