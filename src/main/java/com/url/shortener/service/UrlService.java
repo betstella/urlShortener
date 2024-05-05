@@ -1,5 +1,7 @@
 package com.url.shortener.service;
 
+import com.url.shortener.config.ZooKeeperClient;
+import com.url.shortener.encoder.Base10Encoder;
 import com.url.shortener.entity.Url;
 import com.url.shortener.repository.UrlRepository;
 import com.url.shortener.request.UrlRequest;
@@ -11,38 +13,30 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.security.SecureRandom;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Base64;
-import java.util.Objects;
 import java.util.Optional;
 
 @Service
 @Slf4j
 public class UrlService {
 
-    private final int shortUrlLength = 7;
-
     private final int urlExpirationDays = 30;
-
-    private final int generationUniqueUrlRetry= 3;
 
     private final String HTTP_PROTOCOL = "http://";
 
     private final String HTTPS_PROTOCOL = "https://";
 
+    private final Base10Encoder encoder = Base10Encoder.BASE_62;
+
+    private final ZooKeeperClient connectionWatcher = new ZooKeeperClient();
+
     private final RedisTemplate<String, Object> redisTemplate;
 
     private final UrlRepository urlRepository;
-    private final String ALGORITHM_AES = "AES";
 
     @Autowired
     public UrlService(UrlRepository urlRepository, RedisTemplate<String, Object> redisTemplate) {
@@ -51,7 +45,8 @@ public class UrlService {
     }
 
     protected Url fetchUrl(String shortUrl) {
-        return urlRepository.findByShortUrl(shortUrl);
+        long id = encoder.decode(shortUrl);
+        return urlRepository.findById(id);
     }
 
     @Cacheable(value = "longUrl", key = "#shortUrl")
@@ -87,16 +82,17 @@ public class UrlService {
         }
     }
 
-    private byte[] generateKey() {
-        try {
-            KeyGenerator keyGenerator = KeyGenerator.getInstance(ALGORITHM_AES);
-            keyGenerator.init(256);
-            SecretKey secretKey = keyGenerator.generateKey();
-            return secretKey.getEncoded();
-        } catch (Exception e) {
-            log.error("Could not generate a key", e);
-            return null;
+    private long generateKey() throws Exception {
+        if(!connectionWatcher.existsNode(ZooKeeperClient.COUNTER_NODE)) {
+            try {
+                connectionWatcher.createNode(ZooKeeperClient.COUNTER_NODE, ZooKeeperClient.INITIAL_COUNTER);
+                return Long.parseLong(ZooKeeperClient.INITIAL_COUNTER);
+            } catch (Exception e) {
+                log.error("Could not generate the id");
+                throw new Exception(e);
+            }
         }
+        return connectionWatcher.getNextId();
     }
 
     public String getHost(HttpServletRequest request) {
@@ -104,54 +100,48 @@ public class UrlService {
         int port = request.getServerPort();
 
         return port != 80 ? host + ":" + port : host;
+    }
 
+    private void zooKeeperConnect() {
+        try {
+            connectionWatcher.connect();
+        } catch (IOException | InterruptedException e) {
+            System.err.println("Error connecting to zookeeper: " + e.getMessage());
+        } finally {
+            try {
+                connectionWatcher.close();
+            } catch (InterruptedException e) {
+                log.error("Error closing the connection with zookeeper: {}", e.getMessage());
+            }
+        }
     }
 
     public String shortenURL(String longURL, String remoteIp) throws Exception {
         try {
-            int count = 0;
-            boolean existsShortUrl;
-            String shortURL;
-            SecureRandom random = new SecureRandom();
-            byte[] salt = new byte[16];
-            random.nextBytes(salt);
-
-            do {
-                SecretKeySpec secretKeySpec = new SecretKeySpec(Objects.requireNonNull(generateKey()), ALGORITHM_AES);
-                Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-                cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec);
-                byte[] encryptedBytes = cipher.doFinal((Instant.now().toString() + longURL).getBytes());
-                String encryptedURL = this.convertToAlphanumeric(Base64.getEncoder().encodeToString(encryptedBytes));
-
-                shortURL = encryptedURL.substring(0, shortUrlLength);
-                String url = getOriginalUrl(shortURL);
-                existsShortUrl = StringUtils.isNotEmpty(url);
-                count++;
-            } while (count < generationUniqueUrlRetry && existsShortUrl);
-
-            if (!existsShortUrl) {
-                saveUrl(shortURL, longURL, remoteIp);
-                redisTemplate.opsForList().leftPush("#shortUrl", longURL);
-                return shortURL;
+            if(!connectionWatcher.isConnected()) {
+                zooKeeperConnect();
             }
+            long id = generateKey();
 
-            return null;
+            String shortURL = encoder.encode(id);
+
+            saveUrl(id, shortURL, longURL, remoteIp);
+            redisTemplate.opsForList().leftPush("#shortUrl", longURL);
+
+            return shortURL;
         } catch (Exception e) {
             log.error("Could not generate a short url", e);
             throw new Exception(e);
         }
     }
 
-    private void saveUrl(String shortURL, String longURL, String remoteIp) {
+    private void saveUrl(long id, String shortURL, String longURL, String remoteIp) {
         Url url = new Url();
+        url.setId(id);
         url.setLongUrl(longURL);
         url.setShortUrl(shortURL);
         url.setExpirationDate(LocalDate.now().plusDays(urlExpirationDays));
         url.setSourceIp(remoteIp);
         urlRepository.save(url);
-    }
-
-    public String convertToAlphanumeric(String base64String) {
-        return base64String.replaceAll("[^a-zA-Z0-9]", "");
     }
 }

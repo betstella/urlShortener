@@ -8,9 +8,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
-import org.springframework.data.redis.core.RedisHash;
-
-import java.math.BigInteger;
 import java.time.LocalDate;
 
 @Entity
@@ -19,8 +16,7 @@ import java.time.LocalDate;
 @Table(name = "url")
 public class Url {
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    private BigInteger id;
+    private long id;
 
     @Column(name = "long-url", length = 100)
     private String longUrl;

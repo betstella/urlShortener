@@ -39,9 +39,7 @@ public class UrlServiceTest {
     @BeforeEach
     public void setup() {
         MockitoAnnotations.initMocks(this);
-        ReflectionTestUtils.setField(urlService, "shortUrlLength", 7);
         ReflectionTestUtils.setField(urlService, "urlExpirationDays", 30);
-        ReflectionTestUtils.setField(urlService, "generationUniqueUrlRetry", 3);
         when(redisTemplate.opsForList()).thenReturn(listOperations);
         urlService = new UrlService(urlRepository, redisTemplate);
 
