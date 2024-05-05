@@ -75,9 +75,6 @@ public class UrlService {
     }
     public boolean isValidURL(UrlRequest url) {
         try {
-            if(url.getLongUrl().length() > 100) {
-                return false;
-            }
             URL formattedLongUrl = createURL(url.getLongUrl());
             formattedLongUrl.toURI();
             url.setLongUrl(formattedLongUrl.toString());

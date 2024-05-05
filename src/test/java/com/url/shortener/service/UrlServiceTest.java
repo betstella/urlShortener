@@ -55,12 +55,11 @@ public class UrlServiceTest {
     }
 
     @Test
-    public void testIsValidURL_InvalidUrl() {
+    public void testIsValidURL_validUrl() {
         UrlRequest urlRequest = new UrlRequest();
-        // Provide a long URL longer than 100 characters to trigger invalidity
         urlRequest.setLongUrl("https://example.com/this/is/a/very/long/url/that/is/more/than/100/characters/in/length/and/should/fail/validity/check");
 
-        assertFalse(urlService.isValidURL(urlRequest));
+        assertTrue(urlService.isValidURL(urlRequest));
     }
 
     @Test
