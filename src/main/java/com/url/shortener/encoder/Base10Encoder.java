@@ -16,9 +16,6 @@ public class Base10Encoder {
             stringBuilder.insert(0, characters.charAt((int) (number % base)));
             number /= base;
         } while (number > 0);
-        while (stringBuilder.length() != 7) {
-            stringBuilder.insert(0, '0');
-        }
         return stringBuilder.toString();
     }
 
