@@ -13,7 +13,7 @@ public class ZooKeeperClient implements Watcher {
     private static final String ZOOKEEPER_ADDRESS = "172.19.0.2:2181";
     public static final String COUNTER_NODE = "/counter";
     private static final int SESSION_TIMEOUT = 3000;
-    public static final String INITIAL_COUNTER = "100000000000";
+    public static final String INITIAL_COUNTER = "10000000000000";
     private volatile boolean connected = false;
     private ZooKeeper zooKeeper;
     private final CountDownLatch connectedSignal = new CountDownLatch(1);
